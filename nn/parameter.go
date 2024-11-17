@@ -1,4 +1,4 @@
-package grad
+package nn
 
 import (
 	"fmt"
@@ -9,22 +9,22 @@ import (
 type Parameter[F constraints.Float] struct {
 	Val  F
 	Grad F
-	ins  []*ChainRef[F]
+	ins  []*inputRef[F]
 }
 
-type ChainRef[F constraints.Float] struct {
+type inputRef[F constraints.Float] struct {
 	param      *Parameter[F]
 	derivative F
 }
 
-func NewInputParameter[F constraints.Float](value F) *Parameter[F] {
+func NewParameter[F constraints.Float](value F) *Parameter[F] {
 	return &Parameter[F]{Val: value}
 }
 
 func (p *Parameter[F]) Neg() *Parameter[F] {
 	return &Parameter[F]{
 		Val: -p.Val,
-		ins: []*ChainRef[F]{{
+		ins: []*inputRef[F]{{
 			param:      p,
 			derivative: -1,
 		}},
@@ -34,7 +34,7 @@ func (p *Parameter[F]) Neg() *Parameter[F] {
 func (p *Parameter[F]) Rec() *Parameter[F] {
 	return &Parameter[F]{
 		Val: 1 / p.Val,
-		ins: []*ChainRef[F]{{
+		ins: []*inputRef[F]{{
 			param:      p,
 			derivative: -1 / (p.Val * p.Val),
 		}},
@@ -43,9 +43,9 @@ func (p *Parameter[F]) Rec() *Parameter[F] {
 
 func (p *Parameter[F]) Plus(oth any) *Parameter[F] {
 
-	plusBase := func(oth F) *Parameter[F] {
+	withBaseType := func(oth F) *Parameter[F] {
 		newParam := Parameter[F]{Val: p.Val + oth}
-		newParam.ins = []*ChainRef[F]{{
+		newParam.ins = []*inputRef[F]{{
 			param:      p,
 			derivative: 1,
 		}}
@@ -54,14 +54,14 @@ func (p *Parameter[F]) Plus(oth any) *Parameter[F] {
 
 	switch oth := oth.(type) {
 	case int:
-		return plusBase(F(oth))
+		return withBaseType(F(oth))
 	case float32:
-		return plusBase(F(oth))
+		return withBaseType(F(oth))
 	case float64:
-		return plusBase(F(oth))
+		return withBaseType(F(oth))
 	case *Parameter[F]:
 		newParam := Parameter[F]{Val: p.Val + oth.Val}
-		newParam.ins = []*ChainRef[F]{{
+		newParam.ins = []*inputRef[F]{{
 			param:      p,
 			derivative: 1,
 		}, {
@@ -89,9 +89,9 @@ func (p *Parameter[F]) Minus(oth any) *Parameter[F] {
 }
 
 func (p *Parameter[F]) Mul(oth any) *Parameter[F] {
-	mulBase := func(oth F) *Parameter[F] {
+	withBaseType := func(oth F) *Parameter[F] {
 		newParam := Parameter[F]{Val: p.Val * oth}
-		newParam.ins = []*ChainRef[F]{{
+		newParam.ins = []*inputRef[F]{{
 			param:      p,
 			derivative: F(oth),
 		}}
@@ -100,14 +100,14 @@ func (p *Parameter[F]) Mul(oth any) *Parameter[F] {
 	}
 	switch oth := oth.(type) {
 	case int:
-		return mulBase(F(oth))
+		return withBaseType(F(oth))
 	case float32:
-		return mulBase(F(oth))
+		return withBaseType(F(oth))
 	case float64:
-		return mulBase(F(oth))
+		return withBaseType(F(oth))
 	case *Parameter[F]:
 		newParam := Parameter[F]{Val: p.Val * oth.Val}
-		newParam.ins = []*ChainRef[F]{{
+		newParam.ins = []*inputRef[F]{{
 			param:      p,
 			derivative: oth.Val,
 		}, {
@@ -136,12 +136,12 @@ func (p *Parameter[F]) Div(oth any) *Parameter[F] {
 
 func (p *Parameter[F]) Backward() {
 	var inner func(p *Parameter[F], partDer F)
-	inner = func(p *Parameter[F], partDev F) {
+	inner = func(p *Parameter[F], partDer F) {
 		// NOTE(@lberg): gradient is summed from different branches
-		p.Grad += partDev
+		p.Grad += partDer
 		for _, in := range p.ins {
 			// NOTE(@lberg): chain rule
-			inner(in.param, in.derivative*partDev)
+			inner(in.param, in.derivative*partDer)
 		}
 	}
 	inner(p, 1)

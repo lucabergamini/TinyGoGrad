@@ -2,20 +2,30 @@ package main
 
 import (
 	"fmt"
-	"lberg/tinyGoGrad/grad"
+	"lberg/tinyGoGrad/nn"
+	"lberg/tinyGoGrad/optim"
 )
 
 func main() {
-	x1 := grad.NewInputParameter(4.0)
-	x2 := grad.NewInputParameter(3.0)
+	sgd := optim.NewSGD(0.1)
 
-	y1 := x1.Mul(2)
-	y2 := x2.Mul(2)
+	w := nn.NewParameter(1.0)
+	sgd.AddParameter(w)
+	b := nn.NewParameter(0.0)
+	sgd.AddParameter(b)
 
-	w1 := y1.Plus(y2)
-	w2 := w1.Rec()
-	z := w2.Mul(x1)
+	inputVal := 1.0
+	targetVal := 2.0
 
-	z.Backward()
-	fmt.Printf("grads: x1: %f, x2: %f", x1.Grad, x2.Grad)
+	for range 100 {
+		sgd.ZeroGrad()
+		y := nn.NewParameter(inputVal).Mul(w).Plus(b)
+		loss := nn.Pow(y.Minus(targetVal), 2)
+		loss.Backward()
+		sgd.Step()
+	}
+
+	yFin := nn.NewParameter(inputVal).Mul(w).Plus(b)
+
+	fmt.Printf("val: w: %f, b: %f, pred: %f", w.Val, b.Val, yFin.Val)
 }
